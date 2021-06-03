@@ -9,24 +9,69 @@ import "./Oraclize.sol";
 contract Ownable {
     //  TODO's
     //  1) create a private '_owner' variable of type address with a public getter function
+    address private _owner;
+    function getOwner() public view returns(address) {
+        return _owner;
+    }
+
     //  2) create an internal constructor that sets the _owner var to the creater of the contract 
+    constructor() internal {
+        _owner = msg.sender;
+        emit OwnershipTransferred(address(0), _owner);
+    }
     //  3) create an 'onlyOwner' modifier that throws if called by any account other than the owner.
+    modifier onlyOwner {
+        require(msg.sender == _owner, "You are not authorized to perform this action");
+        _;
+    }
     //  4) fill out the transferOwnership function
     //  5) create an event that emits anytime ownerShip is transfered (including in the constructor)
 
     function transferOwnership(address newOwner) public onlyOwner {
         // TODO add functionality to transfer control of the contract to a newOwner.
         // make sure the new owner is a real address
-
+        require(newOwner != address(0));
+        emit OwnershipTransferred(_owner, newOwner);
+        _owner = newOwner;
     }
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 }
 
 //  TODO's: Create a Pausable contract that inherits from the Ownable contract
-//  1) create a private '_paused' variable of type bool
-//  2) create a public setter using the inherited onlyOwner modifier 
-//  3) create an internal constructor that sets the _paused variable to false
-//  4) create 'whenNotPaused' & 'paused' modifier that throws in the appropriate situation
-//  5) create a Paused & Unpaused event that emits the address that triggered the event
+contract Pausable is Ownable {
+    //  1) create a private '_paused' variable of type bool
+    bool private _paused;
+    //  2) create a public setter using the inherited onlyOwner modifier 
+    function pauseContract() public onlyOwner whenNotPaused {
+        _paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function resumeContract() public onlyOwner whenNotPaused {
+        _paused = false;
+        emit ResumeContract(msg.sender);
+    }
+    //  3) create an internal constructor that sets the _paused variable to false
+    constructor() internal {
+        _paused = false;
+    }
+    //  4) create 'whenNotPaused' & 'paused' modifier that throws in the appropriate situation
+    modifier whenNotPaused () {
+        require(_paused == false, "Contract Paused!");
+        _;
+    }
+
+    modifier paused() {
+        require(_paused == true, "Contract not Paused!");
+        _;
+
+    }
+    //  5) create a Paused & Unpaused event that emits the address that triggered the event
+    event Paused(address indexed account);
+    event ResumeContract(address indexed account);
+}
+
 
 contract ERC165 {
     bytes4 private constant _INTERFACE_ID_ERC165 = 0x01ffc9a7;
@@ -105,27 +150,33 @@ contract ERC721 is Pausable, ERC165 {
     function balanceOf(address owner) public view returns (uint256) {
         // TODO return the token balance of given address
         // TIP: remember the functions to use for Counters. you can refresh yourself with the link above
+        uint256 balance = _ownedTokensCount[owner].current();
+        return balance;
     }
 
     function ownerOf(uint256 tokenId) public view returns (address) {
         // TODO return the owner of the given tokenId
+        address tokenOwner = _tokenOwner[tokenId];
+        return tokenOwner;
     }
 
 //    @dev Approves another address to transfer the given token ID
     function approve(address to, uint256 tokenId) public {
-        
+        address tokenOwner = ownerOf(tokenId);
         // TODO require the given address to not be the owner of the tokenId
-
+        require(to != tokenOwner, "You are already owner of this token id!");
         // TODO require the msg sender to be the owner of the contract or isApprovedForAll() to be true
-
+        require(msg.sender == tokenOwner, "You are not the owner or approved for this action");
         // TODO add 'to' address to token approvals
-
+        _tokenApprovals[tokenId] = to;
         // TODO emit Approval Event
-
+        emit Approval(tokenOwner, to, tokenId);
     }
 
     function getApproved(uint256 tokenId) public view returns (address) {
         // TODO return token approval if it exists
+        address approval = _tokenApprovals[tokenId];
+        return approval;
     }
 
     /**
@@ -192,10 +243,15 @@ contract ERC721 is Pausable, ERC165 {
     function _mint(address to, uint256 tokenId) internal {
 
         // TODO revert if given tokenId already exists or given address is invalid
-  
+        require(ownerOf(tokenId) == address(0), "Token already exists");
+        require(to != address(0), "Invalid address");
+
         // TODO mint tokenId to given address & increase token count of owner
+        _tokenOwner[tokenId] = to;
+        _ownedTokensCount[to].increment();
 
         // TODO emit Transfer event
+        emit Transfer(address(0), to, tokenId);
     }
 
     // @dev Internal function to transfer ownership of a given token ID to another address.
